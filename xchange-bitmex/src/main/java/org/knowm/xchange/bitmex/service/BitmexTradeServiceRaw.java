@@ -3,14 +3,20 @@ package org.knowm.xchange.bitmex.service;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import org.knowm.xchange.Exchange;
+import org.knowm.xchange.bitmex.Bitmex;
 import org.knowm.xchange.bitmex.BitmexException;
 import org.knowm.xchange.bitmex.dto.marketdata.BitmexPrivateOrder;
 import org.knowm.xchange.bitmex.dto.trade.BitmexPosition;
 import org.knowm.xchange.bitmex.dto.trade.BitmexSide;
+import org.knowm.xchange.utils.ObjectMapperHelper;
 
 public class BitmexTradeServiceRaw extends BitmexBaseService {
+
+  public static final String ORDER_TYPE_LIMIT = "Limit";
+  public static final String ORDER_TYPE_STOP = "Stop";
 
   /**
    * Constructor
@@ -60,6 +66,8 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
               null,
               null);
       orders.addAll(orderResponse);
+      // Prevent loop when no orders found
+      if (orderResponse.size() == 0) break;
     }
 
     return orders;
@@ -76,8 +84,9 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
         exchange.getNonceFactory(),
         signatureCreator,
         symbol,
-        side == null ? null : side.toString(),
+        side == null ? null : side.getCapitalized(),
         orderQuantity.intValue(),
+        null,
         null,
         null,
         "Market",
@@ -99,11 +108,24 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
         symbol,
         side == null ? null : side.getCapitalized(),
         orderQuantity.intValue(),
+        null,
         price,
         null,
-        "Limit",
+        ORDER_TYPE_LIMIT,
         clOrdID,
         executionInstructions);
+  }
+
+  public List<BitmexPrivateOrder> placeLimitOrderBulk(
+      Collection<Bitmex.PlaceOrderCommand> commands) {
+    String s = ObjectMapperHelper.toCompactJSON(commands);
+    return bitmex.placeOrderBulk(apiKey, exchange.getNonceFactory(), signatureCreator, s);
+  }
+
+  public List<BitmexPrivateOrder> replaceLimitOrderBulk(
+      Collection<Bitmex.ReplaceOrderCommand> commands) {
+    String s = ObjectMapperHelper.toCompactJSON(commands);
+    return bitmex.replaceOrderBulk(apiKey, exchange.getNonceFactory(), signatureCreator, s);
   }
 
   public BitmexPrivateOrder replaceLimitOrder(
@@ -112,8 +134,7 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
       BigDecimal price,
       String orderId,
       String clOrdID,
-      String origClOrdID,
-      String executionInstructions) {
+      String origClOrdID) {
 
     return bitmex.replaceOrder(
         apiKey,
@@ -122,7 +143,7 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
         orderQuantity.intValue(),
         price,
         null,
-        "Limit",
+        ORDER_TYPE_LIMIT,
         // if clOrdID is not null we should not send orderID
         clOrdID != null ? null : orderId,
         clOrdID,
@@ -134,8 +155,7 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
       BigDecimal price,
       String orderID,
       String clOrdID,
-      String origClOrdId,
-      String executionInstructions) {
+      String origClOrdId) {
     return bitmex.replaceOrder(
         apiKey,
         exchange.getNonceFactory(),
@@ -143,7 +163,7 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
         orderQuantity.intValue(),
         null,
         price,
-        "Limit",
+        ORDER_TYPE_LIMIT,
         clOrdID != null ? null : orderID,
         clOrdID,
         origClOrdId);
@@ -164,9 +184,42 @@ public class BitmexTradeServiceRaw extends BitmexBaseService {
         side == null ? null : side.getCapitalized(),
         orderQuantity.intValue(),
         null,
+        null,
         stopPrice,
-        "Stop",
+        ORDER_TYPE_STOP,
         clOrdID,
+        executionInstructions);
+  }
+
+  /**
+   * @param symbol
+   * @param orderQuantity Order quantity in units of the instrument (i.e. contracts).
+   * @param side Order side. Valid options: Buy, Sell. Defaults to 'Buy' unless orderQty or
+   *     simpleOrderQty is negative.
+   * @param simpleOrderQuantity Order quantity in units of the underlying instrument (i.e. Bitcoin).
+   * @param price
+   * @param executionInstructions
+   * @return
+   */
+  public BitmexPrivateOrder placeLimitOrder(
+      String symbol,
+      BitmexSide side,
+      BigDecimal orderQuantity,
+      BigDecimal simpleOrderQuantity,
+      BigDecimal price,
+      String executionInstructions) {
+    return bitmex.placeOrder(
+        apiKey,
+        exchange.getNonceFactory(),
+        signatureCreator,
+        symbol,
+        side == null ? null : side.getCapitalized(),
+        orderQuantity != null ? orderQuantity.intValue() : null,
+        simpleOrderQuantity,
+        price,
+        null,
+        ORDER_TYPE_LIMIT,
+        null,
         executionInstructions);
   }
 

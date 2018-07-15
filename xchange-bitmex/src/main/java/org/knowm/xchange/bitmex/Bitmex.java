@@ -1,5 +1,6 @@
 package org.knowm.xchange.bitmex;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Date;
@@ -153,6 +154,21 @@ public interface Bitmex {
       @Nullable @QueryParam("startTime") Date startTime,
       @Nullable @QueryParam("endTime") Date endTime);
 
+  /**
+   * @param apiKey
+   * @param nonce
+   * @param paramsDigest
+   * @param symbol
+   * @param side Order side. Valid options: Buy, Sell. Defaults to 'Buy' unless orderQty or
+   *     simpleOrderQty is negative.
+   * @param orderQuantity Order quantity in units of the instrument (i.e. contracts).
+   * @param simpleOrderQuantity Order quantity in units of the underlying instrument (i.e. Bitcoin).
+   * @param price
+   * @param stopPrice
+   * @param orderType
+   * @param executionInstructions
+   * @return
+   */
   @POST
   @Path("order")
   BitmexPrivateOrder placeOrder(
@@ -160,13 +176,24 @@ public interface Bitmex {
       @HeaderParam("api-expires") SynchronizedValueFactory<Long> nonce,
       @HeaderParam("api-signature") ParamsDigest paramsDigest,
       @FormParam("symbol") String symbol,
-      @Nullable @FormParam("side") String side,
-      @FormParam("orderQty") int orderQuantity,
+      @FormParam("side") String side,
+      @FormParam("orderQty") Integer orderQuantity,
+      @FormParam("simpleOrderQty") BigDecimal simpleOrderQuantity,
       @FormParam("price") BigDecimal price,
       @Nullable @FormParam("stopPx") BigDecimal stopPrice,
       @Nullable @FormParam("ordType") String orderType,
       @Nullable @FormParam("clOrdID") String clOrdID,
       @Nullable @FormParam("execInst") String executionInstructions);
+
+  @POST
+  @Path("order/bulk")
+  //  @Consumes("application/json")
+  //  @Produces("application/json")
+  List<BitmexPrivateOrder> placeOrderBulk(
+      @HeaderParam("api-key") String apiKey,
+      @HeaderParam("api-expires") SynchronizedValueFactory<Long> nonce,
+      @HeaderParam("api-signature") ParamsDigest paramsDigest,
+      @FormParam("orders") String orderCommands);
 
   @PUT
   @Path("order")
@@ -183,6 +210,16 @@ public interface Bitmex {
       @Nullable @FormParam("orderID") String orderId,
       @Nullable @FormParam("clOrdID") String clOrdID,
       @Nullable @FormParam("origClOrdID") String origClOrdID);
+
+  @PUT
+  @Path("order/bulk")
+  // for some reason underlying library doesn't add contenty type for PUT requests automatically
+  @Consumes("application/x-www-form-urlencoded")
+  List<BitmexPrivateOrder> replaceOrderBulk(
+      @HeaderParam("api-key") String apiKey,
+      @HeaderParam("api-expires") SynchronizedValueFactory<Long> nonce,
+      @HeaderParam("api-signature") ParamsDigest paramsDigest,
+      @FormParam("orders") String orderCommands);
 
   @DELETE
   @Path("order")
@@ -229,4 +266,95 @@ public interface Bitmex {
       @HeaderParam("api-signature") ParamsDigest paramsDigest,
       @FormParam("symbol") String symbol,
       @FormParam("leverage") BigDecimal leverage);
+
+  public static class PlaceOrderCommand {
+    @JsonProperty("symbol")
+    private final String symbol;
+
+    @JsonProperty("side")
+    private final String side;
+
+    @JsonProperty("orderQty")
+    private final int orderQuantity;
+
+    @JsonProperty("price")
+    private final BigDecimal price;
+
+    @JsonProperty("stopPx")
+    private final BigDecimal stopPrice;
+
+    @JsonProperty("ordType")
+    private final String orderType;
+
+    @JsonProperty("clOrdID")
+    private final String clOrdID;
+
+    @JsonProperty("execInst")
+    private final String executionInstructions;
+
+    public PlaceOrderCommand(
+        String symbol,
+        @Nullable String side,
+        int orderQuantity,
+        BigDecimal price,
+        @Nullable BigDecimal stopPrice,
+        @Nullable String orderType,
+        @Nullable String clOrdID,
+        @Nullable String executionInstructions) {
+      this.symbol = symbol;
+      this.side = side;
+      this.orderQuantity = orderQuantity;
+      this.price = price;
+      this.stopPrice = stopPrice;
+      this.orderType = orderType;
+      this.clOrdID = clOrdID;
+      this.executionInstructions = executionInstructions;
+    }
+  }
+
+  public static class ReplaceOrderCommand {
+    @JsonProperty("orderQty")
+    private final int orderQuantity;
+
+    @Nullable
+    @JsonProperty("price")
+    private final BigDecimal price;
+
+    @Nullable
+    @JsonProperty("stopPx")
+    private final BigDecimal stopPrice;
+
+    @Nullable
+    @JsonProperty("ordType")
+    private final String orderType;
+
+    @Nullable
+    @JsonProperty("orderID")
+    private final String orderId;
+
+    @Nullable
+    @JsonProperty("clOrdID")
+    private final String clOrdID;
+
+    @Nullable
+    @JsonProperty("origClOrdID")
+    private final String origClOrdID;
+
+    public ReplaceOrderCommand(
+        int orderQuantity,
+        @Nullable BigDecimal price,
+        @Nullable BigDecimal stopPrice,
+        @Nullable String orderType,
+        @Nullable String orderId,
+        @Nullable String clOrdID,
+        @Nullable String origClOrdID) {
+      this.orderQuantity = orderQuantity;
+      this.price = price;
+      this.stopPrice = stopPrice;
+      this.orderType = orderType;
+      this.orderId = orderId;
+      this.clOrdID = clOrdID;
+      this.origClOrdID = origClOrdID;
+    }
+  }
 }
