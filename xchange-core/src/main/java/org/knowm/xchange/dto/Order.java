@@ -32,6 +32,8 @@ public abstract class Order implements Serializable {
   private BigDecimal fee;
   /** The leverage to use for margin related to this order */
   private String leverage = null;
+  /** In some futures trading scenario, the originalAmount parameter represents the number of contracts, and the unitAmount parameter represents the par value of each contract. */
+  private BigDecimal unitAmount;
 
   /**
    * @param type Either BID (buying) or ASK (selling)
@@ -197,6 +199,14 @@ public abstract class Order implements Serializable {
 
   public void setLeverage(String leverage) {
     this.leverage = leverage;
+  }
+
+  public BigDecimal getUnitAmount() {
+    return unitAmount;
+  }
+
+  public void setUnitAmount(BigDecimal unitAmount) {
+    this.unitAmount = unitAmount;
   }
 
   @Override
