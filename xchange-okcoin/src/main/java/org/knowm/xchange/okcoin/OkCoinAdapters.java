@@ -255,7 +255,7 @@ public final class OkCoinAdapters {
   }
 
   public static LimitOrder adaptOpenOrderFutures(OkCoinFuturesOrder order) {
-    return new LimitOrder(
+    LimitOrder limitOrder = new LimitOrder(
         adaptOrderType(order.getType()),
         order.getAmount(),
         adaptSymbol(order.getSymbol()),
@@ -266,6 +266,10 @@ public final class OkCoinAdapters {
         order.getDealAmount(),
         order.getFee(),
         adaptOrderStatus(order.getStatus()));
+
+    limitOrder.setLeverage(String.valueOf(order.getLeverRate()));
+
+    return limitOrder;
   }
 
   public static OrderType adaptOrderType(String type) {
@@ -284,9 +288,9 @@ public final class OkCoinAdapters {
       case "2":
         return OrderType.ASK;
       case "3":
-        return OrderType.EXIT_ASK;
-      case "4":
         return OrderType.EXIT_BID;
+      case "4":
+        return OrderType.EXIT_ASK;
       default:
         return null;
     }
