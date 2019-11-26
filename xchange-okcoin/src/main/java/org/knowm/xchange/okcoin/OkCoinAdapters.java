@@ -268,6 +268,7 @@ public final class OkCoinAdapters {
         adaptOrderStatus(order.getStatus()));
 
     limitOrder.setLeverage(String.valueOf(order.getLeverRate()));
+    limitOrder.setUnitAmount(order.getUnitAmount());
 
     return limitOrder;
   }
