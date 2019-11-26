@@ -3,11 +3,13 @@ package org.knowm.xchange.binance;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.knowm.xchange.BaseExchange;
 import org.knowm.xchange.ExchangeSpecification;
+import org.knowm.xchange.binance.dto.account.AssetDetail;
 import org.knowm.xchange.binance.dto.meta.exchangeinfo.BinanceExchangeInfo;
 import org.knowm.xchange.binance.dto.meta.exchangeinfo.Filter;
 import org.knowm.xchange.binance.dto.meta.exchangeinfo.Symbol;
@@ -28,8 +30,6 @@ import si.mazi.rescu.SynchronizedValueFactory;
 public class BinanceExchange extends BaseExchange {
 
   private static final Logger LOG = LoggerFactory.getLogger(BinanceExchange.class);
-
-  private static final int DEFAULT_PRECISION = 8;
 
   private BinanceExchangeInfo exchangeInfo;
   private Long deltaServerTimeExpire;
@@ -80,8 +80,10 @@ public class BinanceExchange extends BaseExchange {
       exchangeInfo = marketDataService.getExchangeInfo();
       Symbol[] symbols = exchangeInfo.getSymbols();
 
+      BinanceAccountService accountService = (BinanceAccountService) getAccountService();
+      Map<String, AssetDetail> assetDetailMap = accountService.getAssetDetails();
       for (Symbol symbol : symbols) {
-        if (!symbol.getStatus().equals("BREAK")) { // Symbols with status "BREAK" are delisted
+        if (symbol.getStatus().equals("TRADING")) { // Symbols which are trading
           int basePrecision = Integer.parseInt(symbol.getBaseAssetPrecision());
           int counterPrecision = Integer.parseInt(symbol.getQuotePrecision());
           int pairPrecision = 8;
@@ -91,6 +93,9 @@ public class BinanceExchange extends BaseExchange {
           BigDecimal maxQty = null;
           BigDecimal stepSize = null;
 
+          BigDecimal counterMinQty = null;
+          BigDecimal counterMaxQty = null;
+
           Filter[] filters = symbol.getFilters();
 
           CurrencyPair currentCurrencyPair =
@@ -99,38 +104,45 @@ public class BinanceExchange extends BaseExchange {
           for (Filter filter : filters) {
             if (filter.getFilterType().equals("PRICE_FILTER")) {
               pairPrecision = Math.min(pairPrecision, numberOfDecimals(filter.getTickSize()));
+              counterMaxQty = new BigDecimal(filter.getMaxPrice()).stripTrailingZeros();
             } else if (filter.getFilterType().equals("LOT_SIZE")) {
-              amountPrecision = Math.min(amountPrecision, numberOfDecimals(filter.getMinQty()));
+              amountPrecision = Math.min(amountPrecision, numberOfDecimals(filter.getStepSize()));
               minQty = new BigDecimal(filter.getMinQty()).stripTrailingZeros();
               maxQty = new BigDecimal(filter.getMaxQty()).stripTrailingZeros();
               stepSize = new BigDecimal(filter.getStepSize()).stripTrailingZeros();
+            } else if (filter.getFilterType().equals("MIN_NOTIONAL")) {
+              counterMinQty = new BigDecimal(filter.getMinNotional()).stripTrailingZeros();
             }
           }
 
+          boolean marketOrderAllowed = Arrays.asList(symbol.getOrderTypes()).contains("MARKET");
           currencyPairs.put(
               currentCurrencyPair,
               new CurrencyPairMetaData(
                   new BigDecimal("0.1"), // Trading fee at Binance is 0.1 %
                   minQty, // Min amount
                   maxQty, // Max amount
-                  pairPrecision, // precision
+                  counterMinQty,
+                  counterMaxQty,
+                  amountPrecision, // base precision
+                  pairPrecision, // counter precision
                   null, /* TODO get fee tiers, although this is not necessary now
                         because their API returns current fee directly */
-                  stepSize));
-          currencies.put(
-              new Currency(symbol.getBaseAsset()),
-              new CurrencyMetaData(
-                  basePrecision,
-                  currencies.containsKey(currentCurrencyPair.base)
-                      ? currencies.get(currentCurrencyPair.base).getWithdrawalFee()
-                      : null));
-          currencies.put(
-              new Currency(symbol.getQuoteAsset()),
-              new CurrencyMetaData(
-                  counterPrecision,
-                  currencies.containsKey(currentCurrencyPair.counter)
-                      ? currencies.get(currentCurrencyPair.counter).getWithdrawalFee()
-                      : null));
+                  stepSize,
+                  null,
+                  marketOrderAllowed));
+
+          Currency baseCurrency = currentCurrencyPair.base;
+          CurrencyMetaData baseCurrencyMetaData =
+              BinanceAdapters.adaptCurrencyMetaData(
+                  currencies, baseCurrency, assetDetailMap, basePrecision);
+          currencies.put(baseCurrency, baseCurrencyMetaData);
+
+          Currency counterCurrency = currentCurrencyPair.counter;
+          CurrencyMetaData counterCurrencyMetaData =
+              BinanceAdapters.adaptCurrencyMetaData(
+                  currencies, counterCurrency, assetDetailMap, counterPrecision);
+          currencies.put(counterCurrency, counterCurrencyMetaData);
         }
       }
     } catch (Exception e) {
